@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 
 namespace _Dictionary
@@ -7,35 +8,42 @@ namespace _Dictionary
     {
         static void Main(string[] args)
         {
-            string a = "";
-            Dictionary<int, string> myDictionary = new Dictionary<int, string>();
-            List<int> keyList = new List<int>(myDictionary.Count);
+            //string a = "";
+            _Dictionary<int, string> myDictionary = new _Dictionary<int, string>();
+            //List<int> keyList = new List<int>(myDictionary.Count);
 
-            for (int i = 0; i < 99; i++)
+            //for (int i = 0; i < 99; i++)
+            //{
+            //    a += "a";
+            //    myDictionary.Add(i, a);
+            //    Console.WriteLine($"Key: {i},  Value: {a}");
+            //    keyList.Add(i);
+            //}
+
+            //Console.WriteLine($"Dictionaray elements count: {myDictionary.Count}");
+
+            //myDictionary[0] = "b";
+            //myDictionary[99] = "f";
+            //Console.WriteLine($"{myDictionary[0]}{myDictionary[99]}");
+
+            //for (int i = 0; i < myDictionary.Count; i++)
+            //{                
+            //    Console.WriteLine($"Key: {i},  Value: {myDictionary[i]}");
+            //}
+
+            myDictionary.Add(333, "aaa");
+            myDictionary.Add(555, "bbb");
+            myDictionary.Add(777, "ccc");
+            foreach (var item in myDictionary)
             {
-                a += "a";
-                myDictionary.Add(i, a);
-                Console.WriteLine($"Key: {i},  Value: {a}");
-                keyList.Add(i);
+                Console.WriteLine($"{item.Key} {item.Value}");
             }
-            
-            Console.WriteLine($"Dictionaray elements count: {myDictionary.Count}");
-
-            myDictionary[0] = "b";
-            myDictionary[99] = "f";
-            Console.WriteLine($"{myDictionary[0]}{myDictionary[99]}");
-
-            for (int i = 0; i < myDictionary.Count; i++)
-            {                
-                Console.WriteLine($"Key: {i},  Value: {myDictionary[i]}");
-            }
-
 
             Console.ReadKey();
         }
     }
 
-    public class Dictionary<TKey, TValue>
+    public class _Dictionary<TKey, TValue> 
     {
         private struct Entry
         {
@@ -59,11 +67,11 @@ namespace _Dictionary
         private const String KeyValuePairsName = "KeyValuePairs";
         private const String ComparerName = "Comparer";
 
-        public Dictionary() : this(0, null) { }
+        public _Dictionary() : this(0, null) { }
 
-        public Dictionary(int capacity) : this(capacity, null) { }
+        public _Dictionary(int capacity) : this(capacity, null) { }
 
-        public Dictionary(int capacity, IEqualityComparer<TKey> comparer)
+        public _Dictionary(int capacity, IEqualityComparer<TKey> comparer)
         {
             if (capacity < 0) throw new ArgumentOutOfRangeException();
             if (capacity > 0) Initialize(capacity);
@@ -244,6 +252,168 @@ namespace _Dictionary
             return false;
         }
 
+        public interface IEnumerator<out T> : IDisposable, IEnumerator
+        {
+            /// <include file='doc\IEnumerator.uex' path='docs/doc[@for="IEnumerator.Current"]/*' />
+            new T Current
+            {
+                get;
+            }
+        }
+        public interface IEnumerator
+        {
+            bool MoveNext();
+            Object Current
+            {
+                get;
+            }
+            void Reset();
+        }
+
+        public Enumerator GetEnumerator()
+        {
+            return new Enumerator(this, Enumerator.KeyValuePair);
+        }
+
+        public interface IDictionaryEnumerator : IEnumerator
+        {
+            Object Key
+            {
+                get;
+            }
+            Object Value
+            {
+                get;
+            }
+            DictionaryEntry Entry
+            {
+                get;
+            }
+        }
+        public struct Enumerator : IEnumerator<KeyValuePair<TKey, TValue>>, IEnumerator, IDictionaryEnumerator
+
+        {
+            private _Dictionary<TKey, TValue> dictionary;
+            private int version;
+            private int index;
+            private KeyValuePair<TKey, TValue> current;
+            private int getEnumeratorRetType;  // What should Enumerator.Current return?
+
+            internal const int DictEntry = 1;
+            internal const int KeyValuePair = 2;
+
+            internal Enumerator(_Dictionary<TKey, TValue> dictionary, int getEnumeratorRetType)
+            {
+                this.dictionary = dictionary;
+                version = dictionary.version;
+                index = 0;
+                this.getEnumeratorRetType = getEnumeratorRetType;
+                current = new KeyValuePair<TKey, TValue>();
+            }
+
+            public bool MoveNext()
+            {
+                if (version != dictionary.version)
+                {
+                    throw new InvalidOperationException();
+                }
+
+                // Use unsigned comparison since we set index to dictionary.count+1 when the enumeration ends.
+                // dictionary.count+1 could be negative if dictionary.count is Int32.MaxValue
+                while ((uint)index < (uint)dictionary.count)
+                {
+                    if (dictionary.entries[index].hashCode >= 0)
+                    {
+                        current = new KeyValuePair<TKey, TValue>(dictionary.entries[index].key, dictionary.entries[index].value);
+                        index++;
+                        return true;
+                    }
+                    index++;
+                }
+
+                index = dictionary.count + 1;
+                current = new KeyValuePair<TKey, TValue>();
+                return false;
+            }
+
+            public KeyValuePair<TKey, TValue> Current
+            {
+                get { return current; }
+            }
+
+            public void Dispose()
+            {
+            }
+
+            object IEnumerator.Current
+            {
+                get
+                {
+                    if (index == 0 || (index == dictionary.count + 1))
+                    {
+                        throw new InvalidOperationException();
+                    }
+
+                    if (getEnumeratorRetType == DictEntry)
+                    {
+                        return new System.Collections.DictionaryEntry(current.Key, current.Value);
+                    }
+                    else
+                    {
+                        return new KeyValuePair<TKey, TValue>(current.Key, current.Value);
+                    }
+                }
+            }
+
+            void IEnumerator.Reset()
+            {
+                if (version != dictionary.version)
+                {
+                    throw new InvalidOperationException();
+                }
+
+                index = 0;
+                current = new KeyValuePair<TKey, TValue>();
+            }
+
+            DictionaryEntry IDictionaryEnumerator.Entry
+            {
+                get
+                {
+                    if (index == 0 || (index == dictionary.count + 1))
+                    {
+                        throw new InvalidOperationException();
+                    }
+
+                    return new DictionaryEntry(current.Key, current.Value);
+                }
+            }
+
+            object IDictionaryEnumerator.Key
+            {
+                get
+                {
+                    if (index == 0 || (index == dictionary.count + 1))
+                    {throw new InvalidOperationException();
+                    }
+
+                    return current.Key;
+                }
+            }
+
+            object IDictionaryEnumerator.Value
+            {
+                get
+                {
+                    if (index == 0 || (index == dictionary.count + 1))
+                    {
+                        throw new InvalidOperationException();
+                    }
+
+                    return current.Value;
+                }
+            }
+        }
         internal static class HashHelpers
         {
             public const int MaxPrimeArrayLength = 0x7FEFFFFD;
@@ -307,4 +477,5 @@ namespace _Dictionary
             }
         }
     }
+
 }
